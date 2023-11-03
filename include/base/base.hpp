@@ -1,7 +1,10 @@
 #ifndef BASE_BASE_HPP
 #define BASE_BASE_HPP
 
+#include "concepts.hpp"
+#include "encodings.hpp"
 #include <bit>
+#include <iostream>
 #include <numeric>
 #include <ranges>
 #include <string>
@@ -10,38 +13,6 @@
 #include <cstddef>
 
 namespace hana {
-
-namespace encoding {
-
-	struct base64 {
-		static constexpr char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-		static constexpr char padding = '=';
-	};
-
-	struct base32 {
-		static constexpr char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-		static constexpr char padding = '=';
-	};
-
-	struct base16 {
-		static constexpr char alphabet[] = "0123456789abcdef";
-	};
-
-	struct base8 {
-		static constexpr char alphabet[] = "01234567";
-	};
-
-	struct base4 {
-		static constexpr char alphabet[] = "0123";
-	};
-
-	struct base2 {
-		static constexpr char alphabet[] = "01";
-	};
-
-} // namespace encoding
-
-template <typename T> concept byte_like = std::same_as<T, std::byte> || std::same_as<T, char> || std::same_as<T, signed char> || std::same_as<T, unsigned char> || std::same_as<T, uint8_t> || std::same_as<T, int8_t>;
 
 template <typename Encoding> struct encoding_properties {
 	static_assert(Encoding::alphabet[std::size(Encoding::alphabet) - 1u] == '\0'); // must be zero-terminated
@@ -55,24 +26,31 @@ template <typename Encoding> struct encoding_properties {
 	static_assert(bits <= 8);
 	static_assert(bits > 0);
 
-	static constexpr bool has_padding = requires() { {Encoding::padding} -> byte_like; };
+	static constexpr bool has_padding = padded_encoding<Encoding>;
+
+	static constexpr char padding = [] {
+		if constexpr (has_padding) {
+			return Encoding::padding;
+		} else {
+			return '\0';
+		}
+	}();
 
 	static constexpr size_t block_size_bits = std::lcm(bits, 8);
 	static constexpr size_t input_block_size = block_size_bits / 8;
 	static constexpr size_t output_block_size = block_size_bits / bits;
 
-	static consteval auto calculate_alphabet() {
+	static constexpr auto alphabet = [] {
 		std::array<char, 256> output;
 
-		for (size_t i = 0; i != 256; ++i) {
-			const uint8_t encoded_bits = static_cast<uint8_t>(i) >> (8u - bits);
-			output[i] = Encoding::alphabet[encoded_bits];
+		std::fill(output.begin(), output.end(), padding);
+
+		for (size_t i = 0; i != size; ++i) {
+			output[i] = Encoding::alphabet[i];
 		}
 
 		return output;
-	}
-
-	static constexpr auto alphabet = calculate_alphabet();
+	}();
 
 	static consteval auto calculate_reverse_alphabet() {
 		std::array<uint8_t, 256> output;
@@ -127,27 +105,119 @@ static_assert(encoding_properties<encoding::base2>::bits == 1);
 static_assert(encoding_properties<encoding::base2>::input_block_size == 1);
 static_assert(encoding_properties<encoding::base2>::output_block_size == 8);
 
-template <typename T> concept byte_like_range = requires() {
-	requires std::ranges::range<T>;
-	requires byte_like<std::ranges::range_value_t<T>>;
-};
+// [AAAA aaaa] [BBBB bbbb] [CCCC cccc] [DDDD dddd] [EEEE eeee] (base256 = byte)
 
-// [AAAA aaaa] [BBBB bbbb] [CCCC cccc] [DDDD dddd] [EEEE eeee] (base256)
 // [AAAAaa] [aaBBBB] [bbbbCC] [CCcccc] (base64)
 // [AAAAa] [aaaBB] [BBbbb] [bCCCC] [ccccD] [DDDdd] [ddEEE] [Eeeee] (base32)
 // [AAAA] [aaaa] (base16)
 // [AAA] [Aaa] [aaB] [BBB] [bbb] [bCC] [CCc] [ccc] (base8)
 // [AA] [AA] [aa] [aa] (base4)
 
+template <typename It, typename End> struct read_bits {
+	It it;
+	End end;
+
+	static constexpr uint16_t padding_value = 0xF000u;
+	static constexpr uint8_t mask = 0b00'111111u;
+
+	uint16_t tmp{0};
+	uint8_t counter{0};
+
+	constexpr uint16_t read_byte(fixed<true> = {}) {
+		if (it == end) {
+			return padding_value;
+		}
+
+		const auto r = static_cast<uint8_t>(*it);
+		++it;
+		return r;
+	}
+
+	constexpr uint16_t read_byte(fixed<false>) {
+		return 0u;
+	}
+
+	template <bool NeedRead, size_t OldShift, size_t NewShift> constexpr uint8_t read_part(uint16_t & previous) {
+		const uint16_t byte = read_byte(fixed_cast<NeedRead>);
+
+		const uint8_t r = (( // first and newly read byte
+							   (previous << OldShift) | (byte >> NewShift))
+							  & mask) // we observe only first 1-7 bits
+			| (previous >> 8u);		  // if previous read failed we use highest bit to get padding mark
+
+		previous = byte;
+
+		return r;
+	}
+
+	using fnc_ptr = uint8_t (read_bits::*)(uint16_t &);
+
+	static constexpr auto ptrs = std::array<fnc_ptr, 4>{
+		&read_bits::read_part<true, 6, 2>,
+		&read_bits::read_part<true, 4, 4>,
+		&read_bits::read_part<true, 2, 6>,
+		&read_bits::read_part<false, 0, 0>,
+	};
+
+	uint8_t read() {
+		// read | previous shift | new shift
+		// 1    | <<6            | >>2
+		// 1    | <<4            | >>4
+		// 1    | <<2            | >>6
+		// 0    | <<0            | >>0
+
+		return (this->*ptrs[(counter++) % 4u])(this->tmp);
+	}
+
+	char read_encoded() {
+		return encoding_properties<encoding::base64>::alphabet[read()];
+	}
+
+	auto read_block() -> std::array<uint8_t, 4> {
+		uint16_t previous = 0;
+		return std::array<uint8_t, 4>{
+			read_part<true, 6, 2>(previous),
+			read_part<true, 4, 4>(previous),
+			read_part<true, 2, 6>(previous),
+			read_part<false, 0, 0>(previous)};
+	}
+
+	/*
+	shift values:
+		0: ((tmp = read()) >> 2) [AAAAaa]
+		1: (((tmp << 4) ((tmp = read()) >> 4)) & mask) [aaBBBB]
+		2: (((tmp << 2) ((tmp = read()) >> 6)) & mask) [bbbbCC]
+		3: (tmp & mask) [CCcccc]
+	*/
+};
+
 template <std::ranges::forward_range Range, typename Encoding = hana::encoding::base64>
-requires byte_like_range<Range>
+requires byte_range<Range>
 class encode_view {
 private:
 	using property = encoding_properties<Encoding>;
 
 	struct iterator {
+		constexpr iterator() noexcept: it{}, end{} { }
+		constexpr iterator(std::ranges::iterator_t<Range> _it, std::ranges::sentinel_t<Range> _end) noexcept: it{_it}, end{_end} { }
+		iterator(const iterator &) = default;
+		iterator(iterator &&) noexcept = default;
+
+		iterator & operator=(const iterator &) = default;
+		iterator & operator=(iterator &&) noexcept = default;
+
+		~iterator() noexcept = default;
+
 		std::ranges::iterator_t<Range> it;
 		std::ranges::sentinel_t<Range> end;
+
+		using buffer_type = std::array<char, property::input_block_size>;
+
+		buffer_type buffer;
+
+		constexpr buffer_type read_buffer() {
+			return property::read_buffer(it, end);
+		}
 
 		using value_type = char;
 		using difference_type = ptrdiff_t;
@@ -183,6 +253,14 @@ private:
 public:
 	constexpr encode_view(Range in) noexcept: original{std::move(in)} { }
 
+	encode_view(const encode_view &) = default;
+	encode_view(encode_view &&) noexcept = default;
+
+	encode_view & operator=(const encode_view &) = default;
+	encode_view & operator=(encode_view &&) noexcept = default;
+
+	~encode_view() noexcept = default;
+
 	constexpr auto begin() const {
 		return iterator{original.begin(), original.end()};
 	}
@@ -211,12 +289,12 @@ public:
 };
 
 template <typename Encoding = hana::encoding::base64> struct encode_action {
-	template <std::ranges::forward_range Range> requires byte_like_range<Range>
+	template <std::ranges::forward_range Range> requires byte_range<Range>
 	constexpr friend auto operator|(Range && range, encode_action) noexcept {
 		return encode_view<Range, Encoding>(std::forward<Range>(range));
 	}
 
-	template <std::ranges::forward_range Range> requires byte_like_range<Range>
+	template <std::ranges::forward_range Range> requires byte_range<Range>
 	constexpr auto operator()(Range && range) const noexcept {
 		return encode_view<Range, Encoding>(std::forward<Range>(range));
 	}
