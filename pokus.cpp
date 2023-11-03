@@ -36,6 +36,8 @@ int main() {
 
 	std::cout << "'\n";
 
+	std::cout << to_string(encoded) << "\n";
+
 	for (size_t i = 0; i != 64; ++i) {
 		using base64 = hana::encoding_properties<hana::encoding::base64>;
 		std::cout << i << " -> " << base64::calculate_size(i) << "\n";

@@ -4,6 +4,8 @@
 #include <bit>
 #include <numeric>
 #include <ranges>
+#include <string>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 
@@ -71,6 +73,24 @@ template <typename Encoding> struct encoding_properties {
 	}
 
 	static constexpr auto alphabet = calculate_alphabet();
+
+	static consteval auto calculate_reverse_alphabet() {
+		std::array<uint8_t, 256> output;
+
+		std::fill(output.begin(), output.end(), '\0'); // error indicator?
+
+		for (size_t i = 0; i != size; ++i) {
+			output[static_cast<uint8_t>(Encoding::alphabet[i])] = static_cast<uint8_t>(i);
+		}
+
+		if constexpr (has_padding) {
+			output[Encoding::padding] = '\0';
+		}
+
+		return output;
+	}
+
+	static constexpr auto reverse_alphabet = calculate_reverse_alphabet();
 
 	static constexpr size_t calculate_size(size_t input) noexcept {
 		return (input + (input_block_size - 1u)) / input_block_size * output_block_size;
@@ -172,7 +192,21 @@ public:
 	}
 
 	constexpr size_t size() const requires std::ranges::sized_range<Range> {
-		return property::calculate_size(original.size());
+		return property::calculate_size(std::size(original));
+	}
+
+	template <typename CharT = char> constexpr friend auto to_string(const encode_view & view) {
+		auto output = std::basic_string<CharT>();
+		output.resize(view.size());
+		auto it = output.begin();
+
+		for (char c: view) { // missing std::ranges::copy?
+			*it++ = c;
+		}
+
+		// assert(it == output.end());
+
+		return output;
 	}
 };
 

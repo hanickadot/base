@@ -12,6 +12,15 @@ if (PROJECT_IS_TOP_LEVEL)
 	include(colors)
 	include(pedantic)
 	
+	option(BASE_COVERAGE "Enable code coverage" ON)
+	
+	if (BASE_COVERAGE)
+		include(coverage)
+		enable_coverage()
+	else()
+		message(STATUS "Test coverage measurement is OFF")
+	endif()
+	
 	add_subdirectory(tests)
 endif()
 
