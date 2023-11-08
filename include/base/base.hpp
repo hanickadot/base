@@ -118,10 +118,15 @@ template <typename It, typename End> struct read_bits {
 	End end;
 
 	static constexpr uint16_t padding_value = 0xF000u;
-	static constexpr uint8_t mask = 0b00'111111u;
+
+	using fnc_ptr = uint8_t (read_bits::*)(uint16_t &);
+	fnc_ptr next_read{};
+
+	unsigned counter{0};
 
 	uint16_t tmp{0};
-	uint8_t counter{0};
+
+	read_bits(It _it, End _end) noexcept: it{_it}, end{_end}, next_read{} { }
 
 	constexpr uint16_t read_byte(fixed<true> = {}) {
 		if (it == end) {
@@ -137,7 +142,7 @@ template <typename It, typename End> struct read_bits {
 		return 0u;
 	}
 
-	template <bool NeedRead, size_t OldShift, size_t NewShift> constexpr uint8_t read_part(uint16_t & previous) {
+	template <bool NeedRead, int OldShift, int NewShift, uint8_t mask> constexpr uint8_t read_part(uint16_t & previous) {
 		const uint16_t byte = read_byte(fixed_cast<NeedRead>);
 
 		const uint8_t r = (( // first and newly read byte
@@ -150,13 +155,11 @@ template <typename It, typename End> struct read_bits {
 		return r;
 	}
 
-	using fnc_ptr = uint8_t (read_bits::*)(uint16_t &);
-
 	static constexpr auto ptrs = std::array<fnc_ptr, 4>{
-		&read_bits::read_part<true, 6, 2>,
-		&read_bits::read_part<true, 4, 4>,
-		&read_bits::read_part<true, 2, 6>,
-		&read_bits::read_part<false, 0, 0>,
+		&read_bits::read_part<true, 6, 2, 0b00'111111u>,
+		&read_bits::read_part<true, 4, 4, 0b00'111111u>,
+		&read_bits::read_part<true, 2, 6, 0b00'111111u>,
+		&read_bits::read_part<false, 0, 0, 0b00'111111u>,
 	};
 
 	uint8_t read() {
@@ -167,6 +170,64 @@ template <typename It, typename End> struct read_bits {
 		// 0    | <<0            | >>0
 
 		return (this->*ptrs[(counter++) % 4u])(this->tmp);
+	}
+
+	// [AAAA aaaa] [BBBB bbbb] [CCCC cccc] [DDDD dddd] [EEEE eeee] (base256 = byte)
+
+	//                 | [AAAAa---] >> 3 = [AAAAa]
+	// [-----aaa] << 2 | [BB------] >> 6 = [aaaBB]
+	// [--BBbbb-] >> 1 | [        ]      = [BBbbb]
+	// [-------b] << 4 | [CCCC----] >> 4 = [bCCCC]
+	// [----cccc] << 1 | [D-------] >> 7 = [ccccD]
+	// [-DDDdd--] >> 2 | [        ]      = [DDDdd]
+	// [------dd] << 3 | [EEE-----] >> 5 = [ddEEE]
+	// [---Eeeee]      | [        ]      = [Eeeee]
+
+	// (base32)
+
+	static constexpr auto ptrs32 = std::array{
+		&read_bits::read_part<true, 0, 3, 0b000'11111u>,
+		&read_bits::read_part<true, 2, 6, 0b000'11111u>,
+		&read_bits::read_part<false, -1, 0, 0b000'11111u>,
+		&read_bits::read_part<true, 4, 4, 0b000'11111u>,
+		&read_bits::read_part<true, 1, 7, 0b000'11111u>,
+		&read_bits::read_part<false, -3, 0, 0b000'11111u>,
+		&read_bits::read_part<true, 3, 5, 0b000'11111u>,
+		&read_bits::read_part<false, 0, 0, 0b000'11111u>,
+	};
+
+	uint8_t read_32() {
+		// read | previous shift | new shift
+		// 1    | <<6            | >>2
+		// 1    | <<4            | >>4
+		// 1    | <<2            | >>6
+		// 0    | <<0            | >>0
+
+		return (this->*ptrs32[(counter++) % 4u])(this->tmp);
+	}
+
+	// [AAAA aaaa] (base256 = byte)
+	// [AAAA]
+	// [aaaa]
+
+	//                 | [AAAA----] >> 4 = [AAAA]
+	// [----aaaa] << _ |                 = [aaaa]
+
+	// (base32)
+
+	static constexpr auto ptrs16 = std::array{
+		&read_bits::read_part<true, 0, 4, 0b0000'1111u>,
+		&read_bits::read_part<false, 4, 0, 0b0000'1111u>,
+	};
+
+	uint8_t read_16() {
+		// read | previous shift | new shift
+		// 1    | <<6            | >>2
+		// 1    | <<4            | >>4
+		// 1    | <<2            | >>6
+		// 0    | <<0            | >>0
+
+		return (this->*ptrs16[(counter++) % 4u])(this->tmp);
 	}
 
 	char read_encoded() {
