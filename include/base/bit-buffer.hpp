@@ -1,5 +1,5 @@
-#ifndef HANA_CHUNK_OF_BITS_HPP
-#define HANA_CHUNK_OF_BITS_HPP
+#ifndef HANA_BIT_BUFFER_HPP
+#define HANA_BIT_BUFFER_HPP
 
 #include "concepts.hpp"
 #include <bit>
@@ -39,7 +39,7 @@ public:
 	using storage_type = select_bit_integer_t<capacity()>;
 	using size_type = select_bit_integer_t<log2_of_power_of_2<std::bit_ceil(capacity())>>;
 
-private:
+public:
 	storage_type buffer{0};
 	size_type bits_available{0};
 
@@ -64,17 +64,22 @@ public:
 
 	template <size_t Bits> constexpr void push(select_bit_integer_t<Bits> in) noexcept requires(Bits <= capacity()) {
 		assert(size() <= capacity() - Bits);
-		buffer = (buffer << Bits) | in;
-		bits_available += Bits;
+		buffer = static_cast<storage_type>(buffer << Bits) | static_cast<storage_type>(in);
+		bits_available += static_cast<size_type>(Bits);
 	}
+	constexpr void push_empty_bits(size_t count) noexcept {
+		buffer = static_cast<storage_type>(buffer << count);
+		bits_available += count;
+	}
+
 	template <size_t Bits> constexpr void pop() noexcept requires(Bits <= capacity()) {
 		assert(size() >= Bits);
-		bits_available -= Bits;
+		bits_available -= static_cast<size_type>(Bits);
 	}
 
 	template <size_t Bits> constexpr auto front() const noexcept -> select_bit_integer_t<Bits> requires(Bits <= capacity()) {
 		using output_type = select_bit_integer_t<Bits>;
-		assert(size() >= Bits);
+		assert(size() >= static_cast<size_type>(Bits));
 		return static_cast<output_type>((buffer >> (bits_available - Bits))) & mask<Bits>;
 	}
 };
@@ -85,15 +90,18 @@ template <size_t OutBits, size_t InBits = 8u> class bit_buffer: protected basic_
 public:
 	constexpr bit_buffer() noexcept = default;
 
-	static constexpr auto out_bits = std::integral_constant<size_t, OutBits>{};
-	static constexpr auto in_bits = std::integral_constant<size_t, InBits>{};
+	using typename super::size_type;
+	static constexpr auto out_bits = std::integral_constant<size_type, OutBits>{};
+	static constexpr auto in_bits = std::integral_constant<size_type, InBits>{};
 
 	using out_type = select_bit_integer_t<OutBits>;
 	using in_type = select_bit_integer_t<InBits>;
 
 	using super::capacity;
-	static constexpr auto in_capacity = std::integral_constant<size_t, (capacity() / in_bits())>{};
-	static constexpr auto out_capacity = std::integral_constant<size_t, (capacity() / out_bits())>{};
+	static constexpr auto in_capacity = std::integral_constant<size_type, (capacity() / in_bits())>{};
+	static constexpr auto out_capacity = std::integral_constant<size_type, (capacity() / out_bits())>{};
+
+	static constexpr auto aligned = std::bool_constant<capacity() == in_capacity()>{};
 
 	constexpr void push(in_type in) noexcept {
 		super::template push<in_bits>(in);
@@ -101,6 +109,21 @@ public:
 
 	constexpr void push_empty() noexcept {
 		this->push(in_type{0u});
+	}
+
+	constexpr size_type push_zeros_to_align() noexcept requires(aligned()) {
+		return 0u;
+	}
+
+	constexpr size_type push_zeros_to_align() noexcept requires(!aligned()) {
+		if (!empty()) {
+			assert(out_bits > super::size());
+			const size_type missing_bits = static_cast<size_type>(out_bits - super::size());
+			super::push_empty_bits(missing_bits);
+			return missing_bits;
+		} else {
+			return 0u;
+		}
 	}
 
 	constexpr void pop() noexcept {
@@ -111,12 +134,12 @@ public:
 		return super::template front<out_bits>();
 	}
 
-	constexpr auto size() const noexcept {
-		return super::size() / out_bits;
+	constexpr size_type size() const noexcept {
+		return static_cast<size_type>(super::size() / out_bits);
 	}
 
-	constexpr auto unused_size() const noexcept {
-		return super::unused_size() / in_bits;
+	constexpr size_type unused_size() const noexcept {
+		return static_cast<size_type>(super::unused_size() / in_bits);
 	}
 
 	using super::empty;
