@@ -42,6 +42,20 @@ TEST_CASE("base64 basics") {
 	REQUIRE(materialize(empty) == "");
 }
 
+TEST_CASE("base64url basics") {
+	const auto view1 = "Man"sv | hana::base64url_encode;
+	REQUIRE(materialize(view1) == "TWFu");
+
+	const auto view2 = "Ma"sv | hana::base64url_encode;
+	REQUIRE(materialize(view2) == "TWE");
+
+	const auto view3 = "M"sv | hana::base64url_encode;
+	REQUIRE(materialize(view3) == "TQ");
+
+	const auto empty = ""sv | hana::base64url_encode;
+	REQUIRE(materialize(empty) == "");
+}
+
 TEST_CASE("base32 basics") {
 	const auto view1 = "abcde"sv | hana::base32_encode;
 	REQUIRE(materialize(view1) == "MFRGGZDF");
