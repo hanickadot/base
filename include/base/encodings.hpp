@@ -12,6 +12,10 @@ namespace encoding {
 		static constexpr char padding = '=';
 	};
 
+	struct base64_no_padding {
+		static constexpr char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	};
+
 	struct base64url {
 		static constexpr char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 	};

@@ -108,6 +108,7 @@ constexpr auto base32_encode = encode_to<encoding::base32, char>;
 constexpr auto z_base32_encode = encode_to<encoding::z_base32, char>;
 constexpr auto base64_encode = encode_to<encoding::base64, char>;
 constexpr auto base64url_encode = encode_to<encoding::base64url, char>;
+constexpr auto base64_no_padding_encode = encode_to<encoding::base64_no_padding, char>;
 
 } // namespace hana
 
