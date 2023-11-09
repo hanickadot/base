@@ -4,12 +4,28 @@
 
 using namespace std::string_view_literals;
 
-static auto materialize(auto && range) -> std::string {
-	std::string output;
-	for (char c: range) {
+static auto materialize(const auto & range) {
+	using char_type = std::ranges::range_value_t<decltype(range)>;
+	std::basic_string<char_type> output;
+	for (char_type c: range) {
 		output += c;
 	}
-	return output;
+
+	std::basic_string<char_type> output2;
+	output2.resize(range.size());
+	auto it = output2.begin();
+	const auto end = output2.end();
+	const auto [in, out] = std::ranges::copy(range.begin(), range.end(), it);
+
+	REQUIRE(out == end);
+	REQUIRE(in == range.end());
+	REQUIRE(output.size() == output2.size());
+
+	return output2;
+}
+
+static auto result_size(const auto & range) {
+	return range.size();
 }
 
 TEST_CASE("base64 basics") {

@@ -211,8 +211,15 @@ template <size_t Bits, bool AllowPadding, std::ranges::input_range Input> requir
 		return sentinel{};
 	}
 
-	constexpr size_t size() const noexcept requires(std::ranges::sized_range<Input>) {
-		return 0;
+	constexpr size_t size() const noexcept requires(std::ranges::sized_range<Input> && AllowPadding) {
+		// calculate with blocks
+		return ((std::ranges::size(input) + (buffer_t::in_capacity() - 1u)) / buffer_t::in_capacity()) * buffer_t::out_capacity();
+	}
+
+	constexpr size_t size() const noexcept requires(std::ranges::sized_range<Input> && !AllowPadding) {
+		// calculate with bits
+		const size_t bit_size_of_input = std::ranges::size(input) * input_value_bit_size;
+		return (bit_size_of_input + (output_value_bit_size - 1u)) / output_value_bit_size;
 	}
 };
 
