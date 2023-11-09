@@ -19,6 +19,10 @@ namespace encoding {
 		static constexpr char padding = '=';
 	};
 
+	struct z_base32 {
+		static constexpr char alphabet[] = "ybndrfg8ejkmcpqxot1uwisza345h769";
+	};
+
 	struct base16 {
 		static constexpr char alphabet[] = "0123456789abcdef";
 	};

@@ -46,6 +46,26 @@ TEST_CASE("base32 basics") {
 	REQUIRE(materialize(empty) == "");
 }
 
+TEST_CASE("z-base32 basics") {
+	const auto view1 = "abcde"sv | hana::z_base32_encode;
+	REQUIRE(materialize(view1) == "cftgg3df");
+
+	const auto view2 = "abcd"sv | hana::z_base32_encode;
+	REQUIRE(materialize(view2) == "cftgg3y");
+
+	const auto view3 = "abc"sv | hana::z_base32_encode;
+	REQUIRE(materialize(view3) == "cftgg");
+
+	const auto view4 = "ab"sv | hana::z_base32_encode;
+	REQUIRE(materialize(view4) == "cfty");
+
+	const auto view5 = "a"sv | hana::z_base32_encode;
+	REQUIRE(materialize(view5) == "cr");
+
+	const auto empty = ""sv | hana::z_base32_encode;
+	REQUIRE(materialize(empty) == "");
+}
+
 TEST_CASE("hexdec basics") {
 	const auto view1 = "Aloha"sv | hana::hexdec_encode;
 	REQUIRE(materialize(view1) ==

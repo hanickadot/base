@@ -13,8 +13,10 @@ template <typename Encoding> struct encoding_properties {
 
 	static constexpr size_t bits = std::countr_zero(size);
 
+	static constexpr bool has_padding = padded_encoding<Encoding>;
+
 	static constexpr char padding = [] {
-		if constexpr (padded_encoding<Encoding>) {
+		if constexpr (has_padding) {
 			return Encoding::padding;
 		} else {
 			return '\0';
@@ -24,7 +26,7 @@ template <typename Encoding> struct encoding_properties {
 
 template <typename Encoding, typename CharT, typename R> struct encode_to_view {
 	using properties = encoding_properties<Encoding>;
-	using chunk_view = hana::chunk_of_bits_view<properties::bits, true, R>;
+	using chunk_view = hana::chunk_of_bits_view<properties::bits, properties::has_padding, R>;
 
 	struct sentinel {
 		[[no_unique_address]] chunk_view::sentinel end;
@@ -99,6 +101,7 @@ constexpr auto base8_encode = encode_to<encoding::base8, char>;
 constexpr auto hexdec_encode = encode_to<encoding::base16, char>;
 constexpr auto base16_encode = encode_to<encoding::base16, char>;
 constexpr auto base32_encode = encode_to<encoding::base32, char>;
+constexpr auto z_base32_encode = encode_to<encoding::z_base32, char>;
 constexpr auto base64_encode = encode_to<encoding::base64, char>;
 } // namespace hana
 
