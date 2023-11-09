@@ -144,6 +144,18 @@ template <typename Buffer, bool AllowPadding> requires(!Buffer::aligned()) struc
 	}
 };
 
+template <bool Value> struct conditional;
+
+template <> struct conditional<true> {
+	template <typename T, typename> using type = T;
+};
+
+template <> struct conditional<false> {
+	template <typename, typename T> using type = T;
+};
+
+template <bool Const, typename T> using maybe_const = typename conditional<Const>::template type<const T, T>;
+
 template <size_t Bits, bool AllowPadding, std::ranges::input_range Input> requires std::integral<std::ranges::range_value_t<Input>> struct chunk_of_bits_view {
 	using input_value_type = std::ranges::range_value_t<Input>;
 
@@ -157,17 +169,18 @@ template <size_t Bits, bool AllowPadding, std::ranges::input_range Input> requir
 
 	struct sentinel { };
 
-	struct iterator {
+	template <bool Const> struct iterator {
+		using parent = maybe_const<Const, Input>;
 		using storage_type = buffer_with_missing_bits<buffer_t, AllowPadding>;
 		using value_type = storage_type::result_type;
 		using difference_type = intptr_t;
 
-		std::ranges::iterator_t<Input> it;
-		[[no_unique_address]] std::ranges::sentinel_t<Input> end;
+		std::ranges::iterator_t<parent> it;
+		[[no_unique_address]] std::ranges::sentinel_t<parent> end;
 
 		storage_type buffer{};
 
-		constexpr iterator(std::ranges::iterator_t<Input> _it, std::ranges::sentinel_t<Input> _end) noexcept: it{std::move(_it)}, end{std::move(_end)} {
+		constexpr iterator(parent & p) noexcept: it{p.begin()}, end{p.end()} {
 			// initialize
 			buffer.feed_buffer(it, end);
 		}
@@ -201,10 +214,19 @@ template <size_t Bits, bool AllowPadding, std::ranges::input_range Input> requir
 		}
 	};
 
+	static_assert(std::input_iterator<iterator<true>>);
+	static_assert(std::input_iterator<iterator<false>>);
+	static_assert(std::sentinel_for<sentinel, iterator<true>>);
+	static_assert(std::sentinel_for<sentinel, iterator<false>>);
+
 	constexpr chunk_of_bits_view(Input _input) noexcept: input{_input} { }
 
 	constexpr auto begin() const noexcept {
-		return iterator{input.begin(), input.end()};
+		return iterator<true>{input};
+	}
+
+	constexpr auto begin() noexcept {
+		return iterator<false>{input};
 	}
 
 	constexpr auto end() const noexcept {

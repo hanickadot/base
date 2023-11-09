@@ -42,6 +42,27 @@ TEST_CASE("base64 basics") {
 	REQUIRE(materialize(empty) == "");
 }
 
+template <typename T> constexpr auto make_array(std::convertible_to<T> auto... values) {
+	return std::array<T, sizeof...(values)>{static_cast<T>(values)...};
+}
+
+TEST_CASE("base64 value corner-cases") {
+	const auto arr = make_array<unsigned char>(0, 0xFFu, 0, 0xFF, 0, 0xFF);
+	const auto view1 = arr | hana::base64_encode;
+	static_assert(std::input_iterator<decltype(view1.begin())>);
+	static_assert(std::ranges::input_range<decltype(view1)>);
+	REQUIRE(materialize(view1) == "AP8A/wD/");
+}
+
+template <typename...> struct identify;
+
+TEST_CASE("base64 value corner-cases (construct from temporary)") {
+	const auto view1 = make_array<unsigned char>(0, 0xFFu, 0, 0xFF, 0, 0xFF) | hana::base64_encode;
+	static_assert(std::input_iterator<decltype(view1.begin())>);
+	static_assert(std::ranges::input_range<decltype(view1)>);
+	REQUIRE(materialize(view1) == "AP8A/wD/");
+}
+
 TEST_CASE("base64url basics") {
 	const auto view1 = "Man"sv | hana::base64url_encode;
 	REQUIRE(materialize(view1) == "TWFu");

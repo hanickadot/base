@@ -32,11 +32,11 @@ template <typename Encoding, typename CharT, typename R> struct encode_to_view {
 		[[no_unique_address]] chunk_view::sentinel end;
 	};
 
-	struct iterator {
+	template <bool Const> struct iterator {
 		using difference_type = intptr_t;
 		using value_type = CharT;
 
-		chunk_view::iterator it;
+		chunk_view::template iterator<Const> it;
 
 		constexpr iterator & operator++() noexcept {
 			++it;
@@ -71,7 +71,11 @@ template <typename Encoding, typename CharT, typename R> struct encode_to_view {
 	constexpr encode_to_view(R _input): input{_input} { }
 
 	constexpr auto begin() const noexcept {
-		return iterator{input.begin()};
+		return iterator<true>{input.begin()};
+	}
+
+	constexpr auto begin() noexcept {
+		return iterator<false>{input.begin()};
 	}
 
 	constexpr auto end() const noexcept {
