@@ -41,6 +41,7 @@ template <typename Encoding, typename CharT, typename R> struct encode_to_view {
 		constexpr value_type operator*() const noexcept {
 			const auto tmp = *it;
 			if constexpr (!chunk_view::aligned) {
+				// TODO: do without condition
 				if (tmp.is_padding()) {
 					return Encoding::padding;
 				}
