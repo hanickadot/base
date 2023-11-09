@@ -6,7 +6,7 @@
 
 namespace hana {
 
-template <size_t Bits, std::ranges::input_range Input> requires std::integral<std::ranges::range_value_t<Input>> struct chunk_of_bits_view {
+template <size_t Bits, bool AllowPadding, std::ranges::input_range Input> requires std::integral<std::ranges::range_value_t<Input>> struct chunk_of_bits_view {
 	using input_value_type = std::ranges::range_value_t<Input>;
 
 	static constexpr size_t output_value_bit_size = Bits;
@@ -17,7 +17,11 @@ template <size_t Bits, std::ranges::input_range Input> requires std::integral<st
 
 	struct result_type {
 		buffer_t::out_type value;
-		buffer_size_t usable_bits;
+		buffer_size_t missing_bits;
+
+		constexpr bool is_padding() const noexcept {
+			return missing_bits == output_value_bit_size;
+		}
 	};
 
 	struct sentinel { };
@@ -46,7 +50,12 @@ template <size_t Bits, std::ranges::input_range Input> requires std::integral<st
 		constexpr void feed_buffer() noexcept {
 			while (!buffer.has_bits_for_pop()) {
 				if (it == end) {
-					missing_bits = buffer.push_zeros_to_align();
+					if constexpr (AllowPadding) {
+						missing_bits = buffer.push_zeros_to_align();
+					} else {
+						missing_bits = buffer.push_zeros_to_align();
+					}
+
 					break;
 				}
 				buffer.push(static_cast<std::make_unsigned_t<input_value_type>>(*it));
@@ -67,8 +76,8 @@ template <size_t Bits, std::ranges::input_range Input> requires std::integral<st
 		}
 
 		constexpr auto operator*() const noexcept {
-			assert(output_value_bit_size >= missing_bits);
-			return value_type{buffer.front(), static_cast<buffer_size_t>(output_value_bit_size - missing_bits)};
+			// assert(output_value_bit_size >= missing_bits);
+			return value_type{buffer.front(), missing_bits};
 		}
 
 		constexpr friend bool operator==(const iterator & lhs, const iterator & rhs) noexcept {
@@ -91,16 +100,16 @@ template <size_t Bits, std::ranges::input_range Input> requires std::integral<st
 	}
 };
 
-template <size_t Bits> struct chunk_of_bits_action {
+template <size_t Bits, bool AllowPadding> struct chunk_of_bits_action {
 	template <std::ranges::input_range R> constexpr friend auto operator|(R && input, chunk_of_bits_action action) {
 		return action.operator()<R>(std::forward<R>(input));
 	}
 	template <std::ranges::input_range R> constexpr auto operator()(R && input) {
-		return chunk_of_bits_view<Bits, R>(std::forward<R>(input));
+		return chunk_of_bits_view<Bits, AllowPadding, R>(std::forward<R>(input));
 	}
 };
 
-template <size_t Bits> constexpr auto chunk_of_bits = chunk_of_bits_action<Bits>{};
+template <size_t Bits, bool AllowPadding = false> constexpr auto chunk_of_bits = chunk_of_bits_action<Bits, AllowPadding>{};
 
 } // namespace hana
 

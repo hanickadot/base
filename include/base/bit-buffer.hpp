@@ -46,11 +46,11 @@ public:
 public:
 	template <size_t Bits> static constexpr auto mask = static_cast<storage_type>((static_cast<storage_type>(1u) << Bits) - 1u);
 
-	constexpr size_t size() const noexcept {
+	constexpr size_type size() const noexcept {
 		return bits_available;
 	}
 
-	constexpr size_t unused_size() const noexcept {
+	constexpr size_type unused_size() const noexcept {
 		return capacity() - bits_available;
 	}
 
@@ -115,15 +115,39 @@ public:
 		return 0u;
 	}
 
+	constexpr size_type push_zeros_for_padding() noexcept requires(aligned()) {
+		return 0u;
+	}
+
 	constexpr size_type push_zeros_to_align() noexcept requires(!aligned()) {
-		if (!empty()) {
-			assert(out_bits > super::size());
-			const size_type missing_bits = static_cast<size_type>(out_bits - super::size());
-			super::push_empty_bits(missing_bits);
-			return missing_bits;
-		} else {
+		if (empty()) {
 			return 0u;
 		}
+
+		assert(out_bits > super::size());
+		const size_type missing_bits = static_cast<size_type>(out_bits - super::size());
+		super::push_empty_bits(missing_bits);
+		return missing_bits;
+	}
+
+	constexpr size_type push_zeros_for_padding() noexcept requires(!aligned()) {
+		if (empty()) {
+			return 0u;
+		}
+
+		size_type missing_bits = 0u;
+		size_type remainder = super::size();
+
+		while (remainder != 0u) {
+			missing_bits += in_bits;
+			remainder += in_bits;
+			if (remainder >= out_bits) {
+				remainder -= out_bits;
+			}
+		}
+
+		super::push_empty_bits(missing_bits);
+		return missing_bits;
 	}
 
 	constexpr void pop() noexcept {
