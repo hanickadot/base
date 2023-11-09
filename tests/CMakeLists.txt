@@ -2,7 +2,7 @@ find_package(Catch2 3 REQUIRED)
 
 #file(GLOB_RECURSE TESTS_SOURCES  LINK_DIRECTORIES false RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.cpp")
 
-list(APPEND TESTS_SOURCES bit-buffer.cpp chunk-of-bits.cpp)
+list(APPEND TESTS_SOURCES bit-buffer.cpp chunk-of-bits.cpp base64.cpp)
 
 add_executable(test-runner ${TESTS_SOURCES})
 

@@ -3,6 +3,7 @@
 
 #include "concepts.hpp"
 #include <bit>
+#include <iostream>
 #include <numeric>
 #include <ranges>
 #include <concepts>
@@ -46,6 +47,8 @@ public:
 public:
 	template <size_t Bits> static constexpr auto mask = static_cast<storage_type>((static_cast<storage_type>(1u) << Bits) - 1u);
 
+	constexpr friend bool operator==(const basic_bit_buffer & lhs, const basic_bit_buffer & rhs) noexcept = default;
+
 	constexpr size_type size() const noexcept {
 		return bits_available;
 	}
@@ -83,6 +86,22 @@ public:
 		return static_cast<output_type>((buffer >> (bits_available - Bits))) & mask<Bits>;
 	}
 };
+
+constexpr size_t calculate_padding_bit_count(size_t number_of_bits_in_buffer, size_t output_size, size_t input_size) {
+	size_t n = number_of_bits_in_buffer;
+	size_t padding_bits = 0u;
+
+	while (n != 0u) {
+		padding_bits += input_size;
+		n += input_size;
+
+		while (n >= output_size) {
+			n = n - output_size;
+		}
+	}
+
+	return padding_bits;
+}
 
 template <size_t OutBits, size_t InBits = 8u> class bit_buffer: protected basic_bit_buffer<std::lcm(OutBits, InBits)> {
 	using super = basic_bit_buffer<std::lcm(OutBits, InBits)>;
@@ -131,23 +150,10 @@ public:
 	}
 
 	constexpr size_type push_zeros_for_padding() noexcept requires(!aligned()) {
-		if (empty()) {
-			return 0u;
-		}
-
-		size_type missing_bits = 0u;
-		size_type remainder = super::size();
-
-		while (remainder != 0u) {
-			missing_bits += in_bits;
-			remainder += in_bits;
-			if (remainder >= out_bits) {
-				remainder -= out_bits;
-			}
-		}
-
+		const size_type usable_bits = super::size();
+		const size_type missing_bits = static_cast<size_type>(calculate_padding_bit_count(super::size(), out_bits, in_bits));
 		super::push_empty_bits(missing_bits);
-		return missing_bits;
+		return usable_bits;
 	}
 
 	constexpr void pop() noexcept {

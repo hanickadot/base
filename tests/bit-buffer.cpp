@@ -147,3 +147,9 @@ TEST_CASE("calculating capacity for typical BASE-n") {
 	REQUIRE(base256.in_capacity() == 1u);
 	REQUIRE(base256.out_capacity() == 1u);
 }
+
+TEST_CASE("calculate padding for base64") {
+	REQUIRE(hana::calculate_padding_bit_count(0, 6, 8) == 0);
+	REQUIRE(hana::calculate_padding_bit_count(2, 6, 8) == 16);
+	REQUIRE(hana::calculate_padding_bit_count(4, 6, 8) == 8);
+}
