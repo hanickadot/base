@@ -52,6 +52,9 @@ TEST_CASE("base64url basics") {
 	const auto view3 = "M"sv | hana::base64url_encode;
 	REQUIRE(materialize(view3) == "TQ");
 
+	const auto view4 = "ab~"sv | hana::base64url_encode;
+	REQUIRE(materialize(view4) == "YWJ-");
+
 	const auto empty = ""sv | hana::base64url_encode;
 	REQUIRE(materialize(empty) == "");
 }

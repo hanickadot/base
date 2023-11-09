@@ -14,6 +14,25 @@ auto convert_to_vector(auto && range) {
 	return output;
 }
 
+template <typename...> struct identify;
+
+TEST_CASE("construction from a reference") {
+	auto x = std::array<uint8_t, 4>{1, 2, 3, 4};
+	auto v = x | hana::chunk_of_bits<4>;
+	REQUIRE(v.size() == 8);
+}
+
+TEST_CASE("construction from a const reference") {
+	const auto x = std::array<uint8_t, 4>{1, 2, 3, 4};
+	auto v = x | hana::chunk_of_bits<4>;
+	REQUIRE(v.size() == 8);
+}
+
+TEST_CASE("construction from a temporary") {
+	auto v = std::array<uint8_t, 4>{1, 2, 3, 4} | hana::chunk_of_bits<4>;
+	REQUIRE(v.size() == 8);
+}
+
 TEST_CASE("construction of chunk view (8bit => 4bit)") {
 	const auto v = "aloha"sv | hana::chunk_of_bits<4>;
 
