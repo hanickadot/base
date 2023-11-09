@@ -21,7 +21,6 @@ namespace encoding {
 
 	struct base16 {
 		static constexpr char alphabet[] = "0123456789abcdef";
-		static constexpr char padding = '=';
 	};
 
 	struct base8 {
@@ -31,12 +30,10 @@ namespace encoding {
 
 	struct base4 {
 		static constexpr char alphabet[] = "0123";
-		static constexpr char padding = '=';
 	};
 
 	struct base2 {
 		static constexpr char alphabet[] = "01";
-		static constexpr char padding = '=';
 	};
 
 } // namespace encoding

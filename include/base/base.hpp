@@ -12,6 +12,14 @@ template <typename Encoding> struct encoding_properties {
 	static_assert(std::popcount(size) == 1u, "Size of encoding's alphabet must be power-of-two");
 
 	static constexpr size_t bits = std::countr_zero(size);
+
+	static constexpr char padding = [] {
+		if constexpr (padded_encoding<Encoding>) {
+			return Encoding::padding;
+		} else {
+			return '\0';
+		}
+	}();
 };
 
 template <typename Encoding, typename CharT, typename R> struct encode_to_view {
@@ -43,10 +51,10 @@ template <typename Encoding, typename CharT, typename R> struct encode_to_view {
 			if constexpr (!chunk_view::aligned) {
 				// TODO: do without condition
 				if (tmp.is_padding()) {
-					return Encoding::padding;
+					return properties::padding;
 				}
 			}
-			return Encoding::alphabet[static_cast<unsigned>(tmp.value)];
+			return static_cast<value_type>(Encoding::alphabet[static_cast<unsigned>(tmp.value)]);
 		}
 
 		constexpr friend bool operator==(const iterator &, const iterator &) noexcept = default;
