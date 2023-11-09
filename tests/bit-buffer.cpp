@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <base/chunk-of-bits.hpp>
+#include <base/bit-buffer.hpp>
 
 using namespace std::string_view_literals;
 
