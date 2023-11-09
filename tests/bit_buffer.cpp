@@ -10,6 +10,7 @@ TEST_CASE("bit_buffer(1)") {
 	buffer.push(0xFFu);
 	REQUIRE(!buffer.empty());
 	REQUIRE(buffer.has_bits_for_pop());
+	REQUIRE(buffer.size() == 1u);
 
 	const auto out1 = buffer.front();
 	buffer.pop();
@@ -22,16 +23,19 @@ TEST_CASE("bit_buffer(2)") {
 	REQUIRE(buffer.has_capacity_for_push());
 
 	buffer.push(0xFFu);
+	REQUIRE(buffer.size() == 1u);
 
 	REQUIRE(buffer.has_bits_for_pop());
 	REQUIRE_FALSE(buffer.empty());
 	REQUIRE(buffer.has_capacity_for_push());
 	buffer.push(0xFFu);
+	REQUIRE(buffer.size() == 2u);
 
 	REQUIRE(buffer.has_bits_for_pop());
 	REQUIRE_FALSE(buffer.empty());
 	REQUIRE(buffer.has_capacity_for_push());
 	buffer.push(0xFFu);
+	REQUIRE(buffer.size() == 4u);
 
 	REQUIRE(buffer.has_bits_for_pop());
 	REQUIRE_FALSE(buffer.empty());
@@ -60,17 +64,28 @@ TEST_CASE("bit_buffer(2)") {
 
 TEST_CASE("bit_buffer(3) check patterns") {
 	auto buffer = hana::bit_buffer<6, 8>{};
+	REQUIRE(buffer.capacity() == 24); // bits
+
 	REQUIRE(buffer.empty());
 	REQUIRE(buffer.has_capacity_for_push());
+	REQUIRE(buffer.size() == 0u);
+	REQUIRE(buffer.unused_size() == 3u);
+
 	REQUIRE_FALSE(buffer.full());
 
 	buffer.push(0x86u);
+	REQUIRE(buffer.unused_size() == 2u);
+	REQUIRE(buffer.size() == 1u);
 	REQUIRE(buffer.has_capacity_for_push());
 
 	buffer.push(0x18u);
+	REQUIRE(buffer.unused_size() == 1u);
+	REQUIRE(buffer.size() == 2u);
 	REQUIRE(buffer.has_capacity_for_push());
 
 	buffer.push(0x61u);
+	REQUIRE(buffer.unused_size() == 0u);
+	REQUIRE(buffer.size() == 4u);
 
 	REQUIRE_FALSE(buffer.empty());
 	REQUIRE_FALSE(buffer.has_capacity_for_push());
@@ -89,4 +104,46 @@ TEST_CASE("bit_buffer(3) check patterns") {
 	REQUIRE(front_and_pop() == 0b100001u);
 
 	REQUIRE(buffer.empty());
+}
+
+TEST_CASE("calculating capacity for typical BASE-n") {
+	const auto base2 = hana::bit_buffer<1>{};
+	REQUIRE(base2.capacity() == 8u);
+	REQUIRE(base2.in_capacity() == 1u);
+	REQUIRE(base2.out_capacity() == 8u);
+
+	const auto base4 = hana::bit_buffer<2>{};
+	REQUIRE(base4.capacity() == 8u);
+	REQUIRE(base4.in_capacity() == 1u);
+	REQUIRE(base4.out_capacity() == 4u);
+
+	const auto base8 = hana::bit_buffer<3>{};
+	REQUIRE(base8.capacity() == 24u);
+	REQUIRE(base8.in_capacity() == 3u);
+	REQUIRE(base8.out_capacity() == 8u);
+
+	const auto base16 = hana::bit_buffer<4>{};
+	REQUIRE(base16.capacity() == 8u);
+	REQUIRE(base16.in_capacity() == 1u);
+	REQUIRE(base16.out_capacity() == 2u);
+
+	const auto base32 = hana::bit_buffer<5>{};
+	REQUIRE(base32.capacity() == 40u);
+	REQUIRE(base32.in_capacity() == 5u);
+	REQUIRE(base32.out_capacity() == 8u);
+
+	const auto base64 = hana::bit_buffer<6>{};
+	REQUIRE(base64.capacity() == 24u);
+	REQUIRE(base64.in_capacity() == 3u);
+	REQUIRE(base64.out_capacity() == 4u);
+
+	const auto base128 = hana::bit_buffer<7>{};
+	REQUIRE(base128.capacity() == 56u);
+	REQUIRE(base128.in_capacity() == 7u);
+	REQUIRE(base128.out_capacity() == 8u);
+
+	const auto base256 = hana::bit_buffer<8>{};
+	REQUIRE(base256.capacity() == 8u);
+	REQUIRE(base256.in_capacity() == 1u);
+	REQUIRE(base256.out_capacity() == 1u);
 }
