@@ -87,6 +87,12 @@ template <typename Encoding, typename CharT, typename R> struct encode_to_view {
 	}
 };
 
+template <typename Encoding, typename ValueT, typename R> struct decode_from_view {
+	R input;
+
+	constexpr decode_from_view(R _input): input{_input} { }
+};
+
 template <typename Encoding, typename CharT = char> struct encode_to_action {
 	template <std::ranges::input_range R> constexpr friend auto operator|(R && input, encode_to_action action) {
 		return action.operator()<R>(std::forward<R>(input));
@@ -96,7 +102,17 @@ template <typename Encoding, typename CharT = char> struct encode_to_action {
 	}
 };
 
+template <typename Encoding, typename ValueT = unsigned char> struct decode_from_action {
+	template <std::ranges::input_range R> constexpr friend auto operator|(R && input, decode_from_action action) {
+		return action.operator()<R>(std::forward<R>(input));
+	}
+	template <std::ranges::input_range R> constexpr auto operator()(R && input) {
+		return decode_from_view<Encoding, ValueT, R>(std::forward<R>(input));
+	}
+};
+
 template <typename Encoding, typename CharT = char> constexpr auto encode_to = encode_to_action<Encoding, CharT>{};
+template <typename Encoding, typename ValueT = unsigned char> constexpr auto decode_from = decode_from_action<Encoding, ValueT>{};
 
 constexpr auto binary_encode = encode_to<encoding::base2, char>;
 constexpr auto base2_encode = encode_to<encoding::base2, char>;
@@ -109,6 +125,18 @@ constexpr auto z_base32_encode = encode_to<encoding::z_base32, char>;
 constexpr auto base64_encode = encode_to<encoding::base64, char>;
 constexpr auto base64url_encode = encode_to<encoding::base64url, char>;
 constexpr auto base64_no_padding_encode = encode_to<encoding::base64_no_padding, char>;
+
+constexpr auto binary_decode = decode_from<encoding::base2, char>;
+constexpr auto base2_decode = decode_from<encoding::base2, char>;
+constexpr auto base4_decode = decode_from<encoding::base4, char>;
+constexpr auto base8_decode = decode_from<encoding::base8, char>;
+constexpr auto hexdec_decode = decode_from<encoding::base16, char>;
+constexpr auto base16_decode = decode_from<encoding::base16, char>;
+constexpr auto base32_decode = decode_from<encoding::base32, char>;
+constexpr auto z_base32_decode = decode_from<encoding::z_base32, char>;
+constexpr auto base64_decode = decode_from<encoding::base64, char>;
+constexpr auto base64url_decode = decode_from<encoding::base64url, char>;
+constexpr auto base64_no_padding_decode = decode_from<encoding::base64_no_padding, char>;
 
 } // namespace hana
 
